@@ -1,0 +1,29 @@
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from peft import LoraConfig, get_peft_model
+from datasets import load_dataset
+
+# Load Base Model (Mistral 7B)
+model_name = "mistralai/Mistral-7B-v0.1"
+model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# Apply LoRA (Efficient Fine-Tuning)
+lora_config = LoraConfig(
+    r=8,  # Rank
+    lora_alpha=32,
+    lora_dropout=0.1,
+    target_modules=["q_proj", "v_proj"]  # Only fine-tune attention layers
+)
+
+model = get_peft_model(model, lora_config)
+
+# Load Fine-Tuning Dataset
+dataset_path = "/mnt/data/fine_tuning_ophthalmology.json"  # Your processed dataset
+dataset = load_dataset("json", data_files=dataset_path, split="train")
+
+# Tokenize Data
+def tokenize_function(examples):
+    return tokenizer(examples["input"], truncation=True, padding="max_length", max_length=512)
+
+dataset = dataset.map(tokenize_function, batched=True)
